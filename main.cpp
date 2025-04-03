@@ -145,7 +145,7 @@ void trafficLightControlTask(void *pvParameters) {
                     
                 case STATE_GREEN_BLINKING:
                     // Handle green blinking
-                    for (int i = 0; i < (GREEN_BLINK_DURATION / (BLINK_INTERVAL * 2)); i++) {
+                    for (int i = 0; i < 4; i++) {
                         greenLed.set_high();
                         vTaskDelay(pdMS_TO_TICKS(BLINK_INTERVAL));
                         greenLed.set_low();
