@@ -5,18 +5,18 @@
 #include "queue.h"
 #include "GPIO.hpp"
 
-// Define GPIO pins for each light (changed pin numbers)
+// Define GPIO pins for each light
 #define RED_PIN    5
 #define YELLOW_PIN 6
 #define GREEN_PIN  7
 
-// Define state timing values in ms (slightly modified)
-#define RED_DURATION          3500
-#define RED_YELLOW_DURATION   1500
-#define GREEN_DURATION        3800
-#define GREEN_BLINK_DURATION  2000
-#define YELLOW_DURATION       1800
-#define BLINK_INTERVAL        300
+// Define state timing values in ms
+#define RED_DURATION          4000
+#define RED_YELLOW_DURATION   4000
+#define GREEN_DURATION        4000
+#define GREEN_BLINK_DURATION  4000
+#define YELLOW_DURATION       4000
+#define BLINK_INTERVAL        1000
 
 // Traffic light states enum
 enum TrafficLightState {
