@@ -1,5 +1,7 @@
 # Time-critical Data Transmission – Ampelsteuerung mit Pico & FreeRTOS
 
+Authors: **Leo Stransky, Lionel Ruf**
+
 Dieses Projekt demonstriert eine zeitkritische Datenübertragung mit einem Raspberry Pi Pico, bei der der Status einer Ampelschaltung via SPI an ein externes Gerät (Ampel) übertragen wird. Bei Übertragungsfehlern wird ein Fehlerzustand (Gelb blinkend) aktiviert.
 
 ## Inhalte
