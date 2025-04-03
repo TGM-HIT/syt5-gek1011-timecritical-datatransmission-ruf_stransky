@@ -1,7 +1,5 @@
 add_executable(freertos_blink
   main.cpp 
-  traffic_light.hpp
-  traffic_light.cpp
   )
 
 # Add pico_stdlib library which aggregates commonly used features

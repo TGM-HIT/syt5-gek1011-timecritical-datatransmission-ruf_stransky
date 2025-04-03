@@ -1,6 +1,7 @@
 #include "traffic_light.hpp"
 #include <stdio.h>
 #include "GPIO.hpp"
+
 // Static instance to be accessible from C-style FreeRTOS task functions
 static TrafficLight* trafficLightInstance = nullptr;
 
