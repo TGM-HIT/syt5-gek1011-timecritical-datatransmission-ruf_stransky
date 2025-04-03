@@ -2,155 +2,184 @@
 #include "pico/stdlib.h"
 #include "FreeRTOS.h"
 #include "task.h"
+#include "queue.h"
 #include "GPIO.hpp"
 
-// Define GPIO pins for each light
-#define RED_PIN    1
-#define YELLOW_PIN 2
-#define GREEN_PIN  3
+// Define GPIO pins for each light (changed pin numbers)
+#define RED_PIN    5
+#define YELLOW_PIN 6
+#define GREEN_PIN  7
 
-// Define task priority levels
-#define HIGH_PRIORITY 1
-#define LOW_PRIORITY  0
+// Define state timing values in ms (slightly modified)
+#define RED_DURATION          3500
+#define RED_YELLOW_DURATION   1500
+#define GREEN_DURATION        3800
+#define GREEN_BLINK_DURATION  2000
+#define YELLOW_DURATION       1800
+#define BLINK_INTERVAL        300
 
-// define the state time in ms
-#define STATE_DURATION 4000
+// Traffic light states enum
+enum TrafficLightState {
+    STATE_RED,
+    STATE_RED_YELLOW,
+    STATE_GREEN,
+    STATE_GREEN_BLINKING,
+    STATE_YELLOW
+};
 
 // Create GPIO objects for each light
-static pico_cpp::GPIO_Pin redLight(RED_PIN, pico_cpp::PinType::Output);
-static pico_cpp::GPIO_Pin yellowLight(YELLOW_PIN, pico_cpp::PinType::Output);
-static pico_cpp::GPIO_Pin greenLight(GREEN_PIN, pico_cpp::PinType::Output);
+static pico_cpp::GPIO_Pin redLed(RED_PIN, pico_cpp::PinType::Output);
+static pico_cpp::GPIO_Pin yellowLed(YELLOW_PIN, pico_cpp::PinType::Output);
+static pico_cpp::GPIO_Pin greenLed(GREEN_PIN, pico_cpp::PinType::Output);
 
-// Task handles for each state task
-TaskHandle_t redTaskHandle = NULL;
-TaskHandle_t redYellowTaskHandle = NULL;
-TaskHandle_t greenTaskHandle = NULL;
-TaskHandle_t greenBlinkTaskHandle = NULL;
-TaskHandle_t yellowTaskHandle = NULL;
+// Queue for state transitions
+QueueHandle_t stateQueue;
 
-// State functions
+// Function prototypes
+void trafficLightControlTask(void *pvParameters);
+void stateTransitionTask(void *pvParameters);
+void setLightState(TrafficLightState state);
 
-void stateRed() {
-    // Only red on
-    redLight.set_high();
-    yellowLight.set_low();
-    greenLight.set_low();
-}
-
-void stateRedYellow() {
-    // Red and Yellow on
-    redLight.set_high();
-    yellowLight.set_high();
-    greenLight.set_low();
-}
-
-void stateGreen() {
-    // Only green on
-    redLight.set_low();
-    yellowLight.set_low();
-    greenLight.set_high();
-}
-
-void stateGreenBlinking() {
-    redLight.set_low();
-    yellowLight.set_low();
-    for (int i = 0; i < 5; i++) {
-        greenLight.set_high();
-        vTaskDelay(pdMS_TO_TICKS(STATE_DURATION/8));
-        greenLight.set_low();
-        vTaskDelay(pdMS_TO_TICKS(STATE_DURATION/8));
-    }
-}
-
-void stateYellow() {
-    // Only yellow on
-    redLight.set_low();
-    yellowLight.set_high();
-    greenLight.set_low();
-}
-
-// Task functions: Each task represents one state
-
-void redTask(void *pvParameters) {
-    for (;;) {
-        if (uxTaskPriorityGet(NULL) == HIGH_PRIORITY) {
-            stateRed();
-            vTaskDelay(pdMS_TO_TICKS(STATE_DURATION));
-            vTaskPrioritySet(redYellowTaskHandle, HIGH_PRIORITY);
-            vTaskPrioritySet(NULL, LOW_PRIORITY);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
-    }
-}
-
-void redYellowTask(void *pvParameters) {
-    for (;;) {
-        if (uxTaskPriorityGet(NULL) == HIGH_PRIORITY) {
-            stateRedYellow();
-            vTaskDelay(pdMS_TO_TICKS(STATE_DURATION)); // 4-second duration
-            // Transition to next state: Green
-            vTaskPrioritySet(greenTaskHandle, HIGH_PRIORITY);
-            vTaskPrioritySet(NULL, LOW_PRIORITY);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
-    }
-}
-
-void greenTask(void *pvParameters) {
-    for (;;) {
-        if (uxTaskPriorityGet(NULL) == HIGH_PRIORITY) {
-            stateGreen();
-            vTaskDelay(pdMS_TO_TICKS(STATE_DURATION)); // 4-second duration
-            // Transition to next state: Green blinking
-            vTaskPrioritySet(greenBlinkTaskHandle, HIGH_PRIORITY);
-            vTaskPrioritySet(NULL, LOW_PRIORITY);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
-    }
-}
-
-void greenBlinkTask(void *pvParameters) {
-    for (;;) {
-        if (uxTaskPriorityGet(NULL) == HIGH_PRIORITY) {
-            stateGreenBlinking();
-            // Because the greenblinking state already takes 4 seconds there is no need for an additional wait
-            vTaskPrioritySet(yellowTaskHandle, HIGH_PRIORITY);
-            vTaskPrioritySet(NULL, LOW_PRIORITY);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
-    }
-}
-
-void yellowTask(void *pvParameters) {
-    for (;;) {
-        if (uxTaskPriorityGet(NULL) == HIGH_PRIORITY) {
-            stateYellow();
-            vTaskDelay(pdMS_TO_TICKS(STATE_DURATION)); 
-            vTaskPrioritySet(redTaskHandle, HIGH_PRIORITY);
-            vTaskPrioritySet(NULL, LOW_PRIORITY);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
-    }
-}
-
-// Main: Create tasks and start the scheduler
-
+// Main function
 int main() {
     stdio_init_all();
+    printf("Traffic Light Controller\n");
 
-    xTaskCreate(redTask, "Red", 1024, NULL, HIGH_PRIORITY, &redTaskHandle);
-    xTaskCreate(redYellowTask, "RedYellow", 1024, NULL, LOW_PRIORITY, &redYellowTaskHandle);
-    xTaskCreate(greenTask, "Green", 1024, NULL, LOW_PRIORITY, &greenTaskHandle);
-    xTaskCreate(greenBlinkTask, "GreenBlink", 1024, NULL, LOW_PRIORITY, &greenBlinkTaskHandle);
-    xTaskCreate(yellowTask, "Yellow", 1024, NULL, LOW_PRIORITY, &yellowTaskHandle);
+    // Create queue for state transitions
+    stateQueue = xQueueCreate(5, sizeof(TrafficLightState));
+    
+    if (stateQueue == NULL) {
+        printf("Failed to create state queue!\n");
+        return 1;
+    }
 
+    // Create the control task
+    xTaskCreate(
+        trafficLightControlTask,
+        "LightControl",
+        1024,
+        NULL,
+        1,
+        NULL
+    );
+
+    // Create the state transition task
+    xTaskCreate(
+        stateTransitionTask,
+        "StateTransition",
+        1024,
+        NULL,
+        2,
+        NULL
+    );
+
+    // Start the scheduler
     vTaskStartScheduler();
 
+    // Should never reach here
     for (;;);
     return 0;
+}
+
+// Set the physical state of the LEDs
+void setLightState(TrafficLightState state) {
+    // Turn off all lights first
+    redLed.set_low();
+    yellowLed.set_low();
+    greenLed.set_low();
+    
+    // Then set the appropriate lights based on state
+    switch (state) {
+        case STATE_RED:
+            redLed.set_high();
+            break;
+        case STATE_RED_YELLOW:
+            redLed.set_high();
+            yellowLed.set_high();
+            break;
+        case STATE_GREEN:
+            greenLed.set_high();
+            break;
+        case STATE_GREEN_BLINKING:
+            // Blinking handled in the control task
+            break;
+        case STATE_YELLOW:
+            yellowLed.set_high();
+            break;
+    }
+}
+
+// Controls the actual light states
+void trafficLightControlTask(void *pvParameters) {
+    TrafficLightState currentState = STATE_RED;
+    TrafficLightState nextState;
+    
+    // Send initial state
+    if (xQueueSend(stateQueue, &currentState, 0) != pdPASS) {
+        printf("Failed to send initial state\n");
+    }
+    
+    for (;;) {
+        // Get next state from queue
+        if (xQueueReceive(stateQueue, &currentState, portMAX_DELAY) == pdPASS) {
+            printf("Changing to state: %d\n", currentState);
+            
+            switch (currentState) {
+                case STATE_RED:
+                    setLightState(currentState);
+                    vTaskDelay(pdMS_TO_TICKS(RED_DURATION));
+                    nextState = STATE_RED_YELLOW;
+                    break;
+                    
+                case STATE_RED_YELLOW:
+                    setLightState(currentState);
+                    vTaskDelay(pdMS_TO_TICKS(RED_YELLOW_DURATION));
+                    nextState = STATE_GREEN;
+                    break;
+                    
+                case STATE_GREEN:
+                    setLightState(currentState);
+                    vTaskDelay(pdMS_TO_TICKS(GREEN_DURATION));
+                    nextState = STATE_GREEN_BLINKING;
+                    break;
+                    
+                case STATE_GREEN_BLINKING:
+                    // Handle green blinking
+                    for (int i = 0; i < (GREEN_BLINK_DURATION / (BLINK_INTERVAL * 2)); i++) {
+                        greenLed.set_high();
+                        vTaskDelay(pdMS_TO_TICKS(BLINK_INTERVAL));
+                        greenLed.set_low();
+                        vTaskDelay(pdMS_TO_TICKS(BLINK_INTERVAL));
+                    }
+                    nextState = STATE_YELLOW;
+                    break;
+                    
+                case STATE_YELLOW:
+                    setLightState(currentState);
+                    vTaskDelay(pdMS_TO_TICKS(YELLOW_DURATION));
+                    nextState = STATE_RED;
+                    break;
+            }
+            
+            // Send the next state to the queue
+            xQueueSend(stateQueue, &nextState, 0);
+        }
+    }
+}
+
+// Diagnostic task for state transitions
+void stateTransitionTask(void *pvParameters) {
+    TrafficLightState prevState = STATE_YELLOW; // Initialize to something
+    TrafficLightState currState;
+    
+    for (;;) {
+        // Peek at the current state without removing it
+        if (xQueuePeek(stateQueue, &currState, pdMS_TO_TICKS(500)) == pdPASS) {
+            if (currState != prevState) {
+                printf("State transition: %d -> %d\n", prevState, currState);
+                prevState = currState;
+            }
+        }
+        vTaskDelay(pdMS_TO_TICKS(100));
+    }
 }
