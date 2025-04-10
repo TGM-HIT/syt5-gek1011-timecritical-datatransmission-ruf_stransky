@@ -147,5 +147,5 @@ int main() {
     vTaskStartScheduler();
 
     // Fallback if the scheduler encounters an error
-    setStateYellowBlinking()        
+    setStateYellowBlinking();
 }
