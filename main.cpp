@@ -11,8 +11,8 @@
 
 // Define task priority levels
 #define HIGH_PRIORITY 2
-#define MEDIUM_PRIORITY 1
-#define LOW_PRIORITY 0
+//#define MEDIUM_PRIORITY 1
+#define LOW_PRIORITY 1
 
 // Define state timing values in ms
 #define STATE_DURATION 4000
@@ -24,7 +24,8 @@ enum TrafficLightState {
     STATE_RED_YELLOW,
     STATE_GREEN,
     STATE_GREEN_BLINKING,
-    STATE_YELLOW
+    STATE_YELLOW,
+    //STATE_YELLOW_BLINKING (For future use)
 };
 
 // Create GPIO objects for each light
