@@ -25,7 +25,7 @@ enum TrafficLightState {
     STATE_GREEN,
     STATE_GREEN_BLINKING,
     STATE_YELLOW,
-    //STATE_YELLOW_BLINKING (For future use)
+    STATE_YELLOW_BLINKING
 };
 
 // Create GPIO objects for each light
@@ -76,68 +76,59 @@ void setStateYellow() {
     greenLed.set_low();
 }
 
+void setStateYellowBlinking() {
+    redLed.set_low();
+    greenLed.set_low();
+    for (;;) {
+        yellowLed.set_high();
+        vTaskDelay(pdMS_TO_TICKS(BLINK_INTERVAL));
+        yellowLed.set_low();
+        vTaskDelay(pdMS_TO_TICKS(BLINK_INTERVAL));
+    }
+}
+
 // Task functions for each state
 void redTask(void *pvParameters) {
     for (;;) {
-        if (uxTaskPriorityGet(NULL) == HIGH_PRIORITY) {
-            setStateRed();
-            vTaskDelay(pdMS_TO_TICKS(STATE_DURATION));
-            vTaskPrioritySet(redYellowTaskHandle, HIGH_PRIORITY);
-            vTaskPrioritySet(NULL, LOW_PRIORITY);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
+        setStateRed();
+        vTaskDelay(pdMS_TO_TICKS(STATE_DURATION));
+        vTaskPrioritySet(redYellowTaskHandle, HIGH_PRIORITY);
+        vTaskPrioritySet(NULL, LOW_PRIORITY);
     }
 }
 
 void redYellowTask(void *pvParameters) {
     for (;;) {
-        if (uxTaskPriorityGet(NULL) == HIGH_PRIORITY) {
-            setStateRedYellow();
-            vTaskDelay(pdMS_TO_TICKS(STATE_DURATION));
-            vTaskPrioritySet(greenTaskHandle, HIGH_PRIORITY);
-            vTaskPrioritySet(NULL, LOW_PRIORITY);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
+        setStateRedYellow();
+        vTaskDelay(pdMS_TO_TICKS(STATE_DURATION));
+        vTaskPrioritySet(greenTaskHandle, HIGH_PRIORITY);
+        vTaskPrioritySet(NULL, LOW_PRIORITY);
     }
 }
 
 void greenTask(void *pvParameters) {
     for (;;) {
-        if (uxTaskPriorityGet(NULL) == HIGH_PRIORITY) {
-            setStateGreen();
-            vTaskDelay(pdMS_TO_TICKS(STATE_DURATION));
-            vTaskPrioritySet(greenBlinkTaskHandle, HIGH_PRIORITY);
-            vTaskPrioritySet(NULL, LOW_PRIORITY);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
+        setStateGreen();
+        vTaskDelay(pdMS_TO_TICKS(STATE_DURATION));
+        vTaskPrioritySet(greenBlinkTaskHandle, HIGH_PRIORITY);
+        vTaskPrioritySet(NULL, LOW_PRIORITY);
     }
 }
 
 void greenBlinkTask(void *pvParameters) {
     for (;;) {
-        if (uxTaskPriorityGet(NULL) == HIGH_PRIORITY) {
-            setStateGreenBlinking();
-            vTaskPrioritySet(yellowTaskHandle, HIGH_PRIORITY);
-            vTaskPrioritySet(NULL, LOW_PRIORITY);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
+        setStateGreenBlinking();
+        vTaskPrioritySet(yellowTaskHandle, HIGH_PRIORITY);
+        vTaskPrioritySet(NULL, LOW_PRIORITY);
     }
 }
 
 void yellowTask(void *pvParameters) {
     for (;;) {
-        if (uxTaskPriorityGet(NULL) == HIGH_PRIORITY) {
-            setStateYellow();
-            vTaskDelay(pdMS_TO_TICKS(STATE_DURATION));
-            vTaskPrioritySet(redTaskHandle, HIGH_PRIORITY);
-            vTaskPrioritySet(NULL, LOW_PRIORITY);
-        } else {
-            vTaskDelay(pdMS_TO_TICKS(100));
-        }
+        setStateYellow();
+        vTaskDelay(pdMS_TO_TICKS(STATE_DURATION));
+        vTaskPrioritySet(redTaskHandle, HIGH_PRIORITY);
+        vTaskPrioritySet(NULL, LOW_PRIORITY);
     }
 }
 
@@ -155,8 +146,6 @@ int main() {
     // Start the FreeRTOS scheduler
     vTaskStartScheduler();
 
-    // Should never reach here
-    for (;;);
-
-    return 0;
+    // Fallback if the scheduler encounters an error
+    setStateYellowBlinking()        
 }
